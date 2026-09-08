@@ -1,16 +1,33 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import WaveformCanvas from './components/WaveformCanvas.vue'
+import SpectrumCanvas from './components/SpectrumCanvas.vue'
+import SpectrogramCanvas from './components/SpectrogramCanvas.vue'
 import { useMicrophone } from './composables/useMicrophone'
+import { useSignalMetrics } from './composables/useSignalMetrics'
 
-const { analyser, error, isListening, sampleRate, setObservationWindow, start, stop } = useMicrophone()
+const { timeAnalyser, frequencyAnalyser, error, isListening, sampleRate, setObservationWindow, setFftSize, start, stop } = useMicrophone()
 const duration = ref(80)
+const fftSize = ref(4096)
+const frequencyMin = ref(0)
+const frequencyMax = ref(10_000)
+const nyquist = computed(() => Math.floor((sampleRate.value || 48_000) / 2))
+const displayMin = computed(() => Math.max(0, Math.min(frequencyMin.value, frequencyMax.value - 100)))
+const displayMax = computed(() => Math.min(nyquist.value, Math.max(frequencyMax.value, displayMin.value + 100)))
+const spectrumTicks = computed(() => Array.from({ length: 6 }, (_, index) => displayMin.value + ((displayMax.value - displayMin.value) * index) / 5))
+const spectrogramTicks = computed(() => [...spectrumTicks.value].reverse())
 const status = computed(() => {
   if (error.value) return '无法访问麦克风'
   return isListening.value ? '正在采集' : '等待采集'
 })
 
 watch(duration, setObservationWindow, { immediate: true })
+watch(fftSize, setFftSize, { immediate: true })
+const { rms, peak, level, dominantFrequency } = useSignalMetrics(frequencyAnalyser, sampleRate)
+const formatAmplitude = (value: number | null) => value === null ? '—' : value.toFixed(3)
+const formatFrequency = (value: number | null) => value === null ? '—' : value >= 1000 ? `${(value / 1000).toFixed(2)} kHz` : `${Math.round(value)} Hz`
+const formatLevel = (value: number | null) => value === null ? '—' : `${value.toFixed(1)} dBFS`
+const formatAxisFrequency = (value: number) => value >= 1000 ? `${(value / 1000).toFixed(value % 1000 === 0 ? 0 : 1)} kHz` : `${Math.round(value)} Hz`
 
 onBeforeUnmount(stop)
 </script>
@@ -21,49 +38,63 @@ onBeforeUnmount(stop)
       <div>
         <p class="eyebrow">ACOUSTICLAB / 01</p>
         <h1>时域观测台</h1>
-        <p class="subtitle">从电脑麦克风捕获声音，并实时查看最近的波形。</p>
+        <p class="subtitle">从电脑麦克风捕获声音，并在时域与频域中实时观测它。</p>
       </div>
       <div class="status" :class="{ active: isListening, danger: error }">
         <span class="status-dot"></span>{{ status }}
       </div>
     </header>
 
-    <section class="workspace">
-      <div class="visualizer-card">
+    <section class="dashboard">
+      <div class="analysis-column">
+        <div class="visualizer-card time-card">
         <div class="card-header">
           <div>
             <p class="section-kicker">LIVE SIGNAL</p>
             <h2>实时波形</h2>
           </div>
-          <span class="unit">Amplitude / Time</span>
+          <span class="unit">实时输入监视 · Amplitude / Time</span>
         </div>
-        <WaveformCanvas :analyser="analyser" :active="isListening" :duration-ms="duration" />
+        <WaveformCanvas :analyser="timeAnalyser" :active="isListening" :duration-ms="duration" />
         <div class="axis-labels"><span>−{{ duration }} ms</span><span>现在</span></div>
+        </div>
+        <section class="analysis-grid">
+      <div class="visualizer-card compact-card">
+        <div class="card-header"><div><p class="section-kicker">FFT / FREQUENCY</p><h2>实时频谱</h2></div><span class="unit">{{ formatAxisFrequency(displayMin) }}–{{ formatAxisFrequency(displayMax) }}</span></div>
+        <SpectrumCanvas :analyser="frequencyAnalyser" :active="isListening" :sample-rate="sampleRate" :min-frequency="displayMin" :max-frequency="displayMax" />
+        <div class="chart-axis horizontal-axis spectrum-axis"><span v-for="tick in spectrumTicks" :key="tick">{{ formatAxisFrequency(tick) }}</span></div>
+      </div>
+      <div class="visualizer-card compact-card">
+        <div class="card-header"><div><p class="section-kicker">STFT / HISTORY</p><h2>声谱图</h2></div><span class="unit">Time →</span></div>
+        <div class="spectrogram-chart">
+          <div class="chart-axis vertical-axis"><span v-for="tick in spectrogramTicks" :key="tick">{{ formatAxisFrequency(tick) }}</span></div>
+          <div class="spectrogram-plot"><SpectrogramCanvas :analyser="frequencyAnalyser" :active="isListening" :sample-rate="sampleRate" :min-frequency="displayMin" :max-frequency="displayMax" /><div class="chart-axis horizontal-axis"><span>过去</span><span>时间 →</span><span>现在</span></div></div>
+        </div>
+      </div>
+        </section>
+        <section class="metric-section">
+      <div class="metric-heading"><p class="section-kicker">SIGNAL FEATURES</p><h2>实时特征</h2><span>基于当前分析帧计算</span></div>
+      <div class="metrics">
+        <div class="metric"><span>RMS</span><strong>{{ formatAmplitude(rms) }}</strong><small>均方根幅度</small></div>
+        <div class="metric"><span>PEAK</span><strong>{{ formatAmplitude(peak) }}</strong><small>峰值幅度</small></div>
+        <div class="metric"><span>DOMINANT</span><strong>{{ formatFrequency(dominantFrequency) }}</strong><small>主频</small></div>
+        <div class="metric"><span>LEVEL</span><strong>{{ formatLevel(level) }}</strong><small>相对声压级（未校准）</small></div>
+      </div>
+        </section>
       </div>
 
       <aside class="control-panel">
-        <div>
-          <p class="section-kicker">INPUT</p>
-          <h2>麦克风</h2>
-        </div>
-        <button class="record-button" :class="{ stop: isListening }" @click="isListening ? stop() : start()">
-          <span class="record-icon"></span>
-          {{ isListening ? '停止采集' : '开启麦克风' }}
-        </button>
+        <div><p class="section-kicker">INPUT</p><h2>麦克风</h2></div>
+        <button class="record-button" :class="{ stop: isListening }" @click="isListening ? stop() : start()"><span class="record-icon"></span>{{ isListening ? '停止采集' : '开启麦克风' }}</button>
         <p v-if="error" class="error-message">{{ error }}</p>
         <p v-else class="help-text">首次点击后，浏览器会请求麦克风使用权限。音频仅在本机处理，不会上传。</p>
-
-        <label class="range-field">
-          <span>观测窗口</span><strong>{{ duration }} ms</strong>
-          <input v-model="duration" type="range" min="20" max="200" step="10" />
-        </label>
-        <dl class="signal-meta">
-          <div><dt>采样率</dt><dd>{{ sampleRate ? `${(sampleRate / 1000).toFixed(1)} kHz` : '—' }}</dd></div>
-          <div><dt>显示模式</dt><dd>过去时域</dd></div>
-        </dl>
+        <label class="range-field"><span>观测窗口</span><strong>{{ duration }} ms</strong><input v-model="duration" type="range" min="20" max="200" step="10" /></label>
+        <div class="frequency-fields"><span class="field-title">显示频率范围</span><label><span>低频</span><input v-model.number="frequencyMin" type="number" min="0" :max="displayMax - 100" step="100" /><em>Hz</em></label><label><span>高频</span><input v-model.number="frequencyMax" type="number" :min="displayMin + 100" :max="nyquist" step="100" /><em>Hz</em></label></div>
+        <label class="select-field"><span>FFT 点数</span><select v-model.number="fftSize"><option :value="1024">1,024</option><option :value="2048">2,048</option><option :value="4096">4,096</option><option :value="8192">8,192</option><option :value="16384">16,384</option></select></label>
+        <dl class="signal-meta"><div><dt>采样率</dt><dd>{{ sampleRate ? `${(sampleRate / 1000).toFixed(1)} kHz` : '—' }}</dd></div><div><dt>显示模式</dt><dd>过去时域</dd></div></dl>
       </aside>
     </section>
 
-    <footer>AcousticLab Demo · 本地实时声学信号观测工具</footer>
+    <footer>AcousticLab Demo · 本地实时声学信号观测工具 · 声压级以 dBFS 表示，未作麦克风校准</footer>
   </main>
 </template>
