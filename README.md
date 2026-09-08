@@ -1,2 +1,40 @@
-# AcousticLab-Demo
-A simple web-based tool built for acoustics learning, designed for easy demonstrations.
+# AcousticLab Demo
+
+一个在浏览器中运行的轻量声学信号观测工具。它直接调用电脑麦克风，将声音信号以清晰的交互界面呈现出来，适合声学学习、课堂演示与快速实验。
+
+## 当前功能
+
+- 开启或停止电脑麦克风采集
+- 实时显示**过去时域**音频波形
+- 调整观测窗口（20–200 ms）
+- 显示输入采样率与采集状态
+- 音频只在浏览器本机处理，不上传服务器
+
+## 快速开始
+
+需要安装 [Node.js](https://nodejs.org/)（建议 LTS 版本）。
+
+```bash
+npm install
+npm run dev
+```
+
+随后访问终端中显示的本地地址（通常是 `http://localhost:5173`），点击“开启麦克风”，并在浏览器弹窗中允许访问麦克风。
+
+## 技术选型
+
+- Vue 3 + TypeScript + Vite
+- Web Audio API：本地获取和分析音频信号
+- Canvas：低延迟绘制时域波形
+
+## 路线图
+
+- [x] 麦克风输入与实时过去时域
+- [ ] 实时频谱（FFT）
+- [ ] 声谱图 / 时频图（STFT）
+- [ ] 信号特征：RMS、峰值、主频与声压级
+- [ ] 录音与分析结果导出
+
+## 使用提示
+
+浏览器麦克风权限通常只在 `localhost` 或 HTTPS 页面下可用。请优先使用最新版 Chrome、Edge 或 Firefox。
