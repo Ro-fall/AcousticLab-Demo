@@ -132,7 +132,7 @@ onBeforeUnmount(stop)
         <p v-if="error" class="error-message">{{ error }}</p>
         <p v-else class="help-text">实时采集会请求麦克风权限；测试信号与导入文件均只在浏览器本机分析，不上传。</p>
         <label class="range-field"><span>观测窗口</span><strong>{{ duration }} ms</strong><input v-model="duration" type="range" min="20" max="200" step="10" /></label>
-        <label class="toggle-field"><span>显示幅度包络</span><input v-model="showEnvelope" type="checkbox" /><i></i></label>
+        <label class="toggle-field"><span>显示 Hilbert 包络</span><input v-model="showEnvelope" type="checkbox" /><i></i></label>
         <div class="frequency-fields"><span class="field-title">显示频率范围</span><label><span>低频</span><input v-model.number="frequencyMin" type="number" min="0" :max="displayMax - 100" step="100" /><em>Hz</em></label><label><span>高频</span><input v-model.number="frequencyMax" type="number" :min="displayMin + 100" :max="nyquist" step="100" /><em>Hz</em></label></div>
         <label class="select-field"><span>FFT 点数</span><select v-model.number="fftSize"><option :value="1024">1,024</option><option :value="2048">2,048</option><option :value="4096">4,096</option><option :value="8192">8,192</option><option :value="16384">16,384</option></select></label>
         <dl class="signal-meta"><div><dt>采样率</dt><dd>{{ sampleRate ? `${(sampleRate / 1000).toFixed(1)} kHz` : '—' }}</dd></div><div><dt>显示模式</dt><dd>过去时域</dd></div></dl>
