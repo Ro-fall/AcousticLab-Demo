@@ -64,12 +64,12 @@ export function useMicrophone() {
     }
   }
 
-  async function startSine(frequency: number) {
+  async function startOscillator(frequency: number, type: OscillatorType) {
     error.value = ''
     try {
       const pipeline = await preparePipeline()
       const oscillator = context!.createOscillator()
-      oscillator.type = 'sine'
+      oscillator.type = type
       oscillator.frequency.value = frequency
       connectSource(oscillator, pipeline)
       oscillator.start()
@@ -78,6 +78,9 @@ export function useMicrophone() {
       stop()
     }
   }
+
+  const startSine = (frequency: number) => startOscillator(frequency, 'sine')
+  const startSquare = (frequency: number) => startOscillator(frequency, 'square')
 
   async function startFile(file: File) {
     error.value = ''
@@ -107,5 +110,5 @@ export function useMicrophone() {
     sampleRate.value = 0
   }
 
-  return { timeAnalyser, frequencyAnalyser, error, isListening, sampleRate, setObservationWindow, setFftSize, startMicrophone, startSine, startFile, stop }
+  return { timeAnalyser, frequencyAnalyser, error, isListening, sampleRate, setObservationWindow, setFftSize, startMicrophone, startSine, startSquare, startFile, stop }
 }

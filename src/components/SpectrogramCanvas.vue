@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import type { AnalysisFrame } from '../composables/useAnalysisFrames'
 
-const props = defineProps<{ analyser: AnalyserNode | null; active: boolean; sampleRate: number; minFrequency: number; maxFrequency: number }>()
+const props = defineProps<{ frame: AnalysisFrame | null; sampleRate: number; minFrequency: number; maxFrequency: number }>()
 const canvas = ref<HTMLCanvasElement | null>(null)
 let frame = 0
 let lastUpdate = 0
@@ -9,6 +10,7 @@ let history = new Uint8Array(0)
 let historyWidth = 0
 let historyHeight = 0
 let writeColumn = 0
+let lastAnalysisFrame: AnalysisFrame | null = null
 
 const stops = [[10, 19, 35], [37, 36, 128], [37, 102, 204], [25, 201, 207], [183, 239, 112], [255, 198, 72]]
 const colorLut = new Uint8ClampedArray(256 * 3)
@@ -43,13 +45,12 @@ function render(ctx: CanvasRenderingContext2D, width: number, height: number) {
 }
 
 function storeSpectrum() {
-  const bins = new Float32Array(props.analyser?.frequencyBinCount ?? 1024)
-  props.analyser?.getFloatFrequencyData(bins)
+  const bins = props.frame?.spectrumDb ?? new Float32Array(1024).fill(-100)
   for (let y = 0; y < historyHeight; y += 1) {
     const progress = (historyHeight - 1 - y) / Math.max(1, historyHeight - 1)
     const frequency = props.minFrequency + progress * (props.maxFrequency - props.minFrequency)
     const bin = Math.min(bins.length - 1, Math.max(0, Math.round((frequency / (props.sampleRate / 2 || 22050)) * bins.length)))
-    const normalized = props.active ? Math.max(0, Math.min(1, (bins[bin] + 92) / 70)) : 0
+    const normalized = Math.max(0, Math.min(1, (bins[bin] + 92) / 70))
     history[writeColumn * historyHeight + y] = Math.round(normalized * 255)
   }
   writeColumn = (writeColumn + 1) % historyWidth
@@ -62,11 +63,17 @@ function draw(now: number) {
   const width = Math.max(1, Math.round(element.clientWidth * ratio))
   const height = Math.max(1, Math.round(element.clientHeight * ratio))
   if (element.width !== width || element.height !== height) { element.width = width; element.height = height; reset(width, height) }
-  if (now - lastUpdate > 45) { storeSpectrum(); render(element.getContext('2d')!, width, height); lastUpdate = now }
+  if (now - lastUpdate > 45) {
+    // Each history column comes from the shared Hann-windowed analysis frame.
+    if (props.frame && props.frame !== lastAnalysisFrame) { storeSpectrum(); lastAnalysisFrame = props.frame }
+    render(element.getContext('2d')!, width, height); lastUpdate = now
+  }
   frame = requestAnimationFrame(draw)
 }
 
-watch(() => props.active, (active) => { if (!active && historyWidth && historyHeight) reset(historyWidth, historyHeight) })
+watch(() => props.frame, (next) => {
+  if (!next && historyWidth && historyHeight) { reset(historyWidth, historyHeight); lastAnalysisFrame = null }
+})
 onMounted(() => { frame = requestAnimationFrame(draw) })
 onBeforeUnmount(() => cancelAnimationFrame(frame))
 </script>
