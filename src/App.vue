@@ -67,7 +67,7 @@ onBeforeUnmount(stop)
   <main class="app-shell">
     <header class="hero">
       <div>
-        <p class="eyebrow">ACOUSTICLAB / 01</p>
+        <p class="eyebrow">AcousticLab Demo</p>
         <h1>声学分析台</h1>
         <p class="subtitle">{{ activeTab === 'analysis' ? '从电脑麦克风捕获声音，并在时域与频域中实时观测它。' : '把当前分析台中出现的声学与信号处理概念放在一处。' }}</p>
       </div>
