@@ -41,7 +41,7 @@ function fft(real: Float64Array, imaginary: Float64Array) {
 const toMel = (hertz: number) => 2595 * Math.log10(1 + hertz / 700)
 const toHertz = (mel: number) => 700 * (10 ** (mel / 2595) - 1)
 
-export function useAnalysisFrames(analyser: Ref<AnalyserNode | null>, sampleRate: Ref<number>, minFrequency: Readonly<Ref<number>>, maxFrequency: Readonly<Ref<number>>) {
+export function useAnalysisFrames(analyser: Ref<AnalyserNode | null>, sampleRate: Ref<number>, minFrequency: Readonly<Ref<number>>, maxFrequency: Readonly<Ref<number>>, paused: Readonly<Ref<boolean>>) {
   const frame = shallowRef<AnalysisFrame | null>(null)
   let animation = 0; let lastUpdate = 0
 
@@ -63,7 +63,8 @@ export function useAnalysisFrames(analyser: Ref<AnalyserNode | null>, sampleRate
     const nyquist = sampleRate.value / 2 || 22050
     let strongest = 1
     for (let bin = 0; bin < bins; bin += 1) {
-      const magnitude = Math.hypot(real[bin], imaginary[bin]) * 2 / size
+      // Sum of this symmetric Hann window is (size - 1) / 2.
+      const magnitude = Math.hypot(real[bin], imaginary[bin]) * (bin === 0 ? 2 : 4) / (size - 1)
       spectrumDb[bin] = 20 * Math.log10(Math.max(magnitude, 1e-8))
       if (bin > 0 && spectrumDb[bin] > spectrumDb[strongest]) strongest = bin
     }
@@ -86,11 +87,11 @@ export function useAnalysisFrames(analyser: Ref<AnalyserNode | null>, sampleRate
       for (let band = 0; band < melBands; band += 1) mfcc[coefficient] += melDb[band] * Math.cos((Math.PI * coefficient * (band + .5)) / melBands)
     }
     const rms = Math.sqrt(squaredTotal / size)
-    return { spectrumDb, melDb, mfcc, rms, peak, dominantFrequency: strongest * sampleRate.value / size, level: 20 * Math.log10(Math.max(rms, 1e-6)) }
+    return { spectrumDb, melDb, mfcc, rms, peak, dominantFrequency: rms < 1e-6 ? 0 : strongest * sampleRate.value / size, level: 20 * Math.log10(Math.max(rms, 1e-6)) }
   }
 
   function update(now: number) {
-    if (analyser.value && now - lastUpdate >= 40) { frame.value = calculate(analyser.value); lastUpdate = now }
+    if (analyser.value && !paused.value && now - lastUpdate >= 40) { frame.value = calculate(analyser.value); lastUpdate = now }
     animation = requestAnimationFrame(update)
   }
   watch(analyser, (next) => { if (!next) frame.value = null })

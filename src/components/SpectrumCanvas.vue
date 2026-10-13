@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import type { AnalysisFrame } from '../composables/useAnalysisFrames'
+import { chartTheme } from '../lib/chartTheme'
 
 const props = defineProps<{ frame: AnalysisFrame | null; sampleRate: number; minFrequency: number; maxFrequency: number }>()
 const canvas = ref<HTMLCanvasElement | null>(null)
@@ -12,11 +13,12 @@ function draw() {
   const ratio = window.devicePixelRatio || 1
   const width = element.clientWidth
   const height = element.clientHeight
+  if (width < 1 || height < 1) { frame = requestAnimationFrame(draw); return }
   if (element.width !== width * ratio || element.height !== height * ratio) { element.width = width * ratio; element.height = height * ratio }
   const ctx = element.getContext('2d')!
   ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
-  ctx.fillStyle = '#0a1323'; ctx.fillRect(0, 0, width, height)
-  ctx.strokeStyle = 'rgba(152, 177, 211, .14)'; ctx.lineWidth = 1
+  ctx.fillStyle = chartTheme.background; ctx.fillRect(0, 0, width, height)
+  ctx.strokeStyle = chartTheme.grid; ctx.lineWidth = 1
   for (let x = 0; x <= width; x += width / 6) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke() }
   for (let y = 0; y <= height; y += height / 4) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke() }
   const bins = props.frame?.spectrumDb ?? new Float32Array(1024).fill(-100)
@@ -27,9 +29,7 @@ function draw() {
   for (let bin = startBin; bin < endBin; bin += 1) {
     const normalized = Math.max(0, Math.min(1, (bins[bin] + 100) / 100))
     const barHeight = normalized * height
-    const gradient = ctx.createLinearGradient(0, height, 0, height - barHeight)
-    gradient.addColorStop(0, '#2cae91'); gradient.addColorStop(1, '#8ef0d4')
-    ctx.fillStyle = gradient
+    ctx.fillStyle = chartTheme.signal
     ctx.fillRect((bin - startBin) * barWidth, height - barHeight, Math.max(1, barWidth - .5), barHeight)
   }
   frame = requestAnimationFrame(draw)
